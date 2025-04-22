@@ -1,0 +1,95 @@
+--// UI Setup
+local ScreenGui = Instance.new("ScreenGui")
+local Frame = Instance.new("Frame")
+local TextLabel = Instance.new("TextLabel")
+local FriendNameBox = Instance.new("TextBox")
+local JoinButton = Instance.new("TextButton")
+
+--// Parent to CoreGui
+ScreenGui.Parent = game:GetService("CoreGui")
+ScreenGui.Name = "JoinFriendUI"
+
+--// Frame UI
+Frame.Size = UDim2.new(0, 300, 0, 160)
+Frame.Position = UDim2.new(0.5, -150, 0.5, -80)
+Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Frame.BorderSizePixel = 0
+Frame.Name = "MainFrame"
+Frame.Parent = ScreenGui
+
+--// Title
+TextLabel.Size = UDim2.new(1, 0, 0, 40)
+TextLabel.BackgroundTransparency = 1
+TextLabel.Text = "Join Friend by Username"
+TextLabel.TextColor3 = Color3.new(1, 1, 1)
+TextLabel.Font = Enum.Font.SourceSansBold
+TextLabel.TextSize = 20
+TextLabel.Parent = Frame
+
+--// Friend Input Box
+FriendNameBox.Size = UDim2.new(0.8, 0, 0, 30)
+FriendNameBox.Position = UDim2.new(0.1, 0, 0, 60)
+FriendNameBox.PlaceholderText = "Enter Exact Friend Username"
+FriendNameBox.Text = ""
+FriendNameBox.TextColor3 = Color3.new(1, 1, 1)
+FriendNameBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+FriendNameBox.Font = Enum.Font.SourceSans
+FriendNameBox.TextSize = 18
+FriendNameBox.ClearTextOnFocus = false
+FriendNameBox.Parent = Frame
+
+--// Join Button
+JoinButton.Size = UDim2.new(0.5, 0, 0, 30)
+JoinButton.Position = UDim2.new(0.25, 0, 0, 105)
+JoinButton.Text = "Join Friend"
+JoinButton.TextColor3 = Color3.new(1, 1, 1)
+JoinButton.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+JoinButton.Font = Enum.Font.SourceSansBold
+JoinButton.TextSize = 18
+JoinButton.Parent = Frame
+
+--// Function to teleport to friend
+JoinButton.MouseButton1Click:Connect(function()
+    local username = FriendNameBox.Text
+    if username == "" then return end
+
+    local HttpService = game:GetService("HttpService")
+    local TeleportService = game:GetService("TeleportService")
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+
+    local function getUserId(name)
+        local success, result = pcall(function()
+            return HttpService:JSONDecode(game:HttpGet("https://api.roblox.com/users/get-by-username?username="..name))
+        end)
+        return (success and result and result.Id) or nil
+    end
+
+    local function getFriendServer(userId)
+        local success, data = pcall(function()
+            return HttpService:JSONDecode(game:HttpGet("https://presence.roblox.com/v1/presence/users", 
+                Enum.HttpContentType.ApplicationJson, 
+                Enum.HttpMethod.POST, 
+                HttpService:JSONEncode({userIds = {userId}})))
+        end)
+        if success and data and data.userPresences and #data.userPresences > 0 then
+            local presence = data.userPresences[1]
+            if presence.placeId and presence.gameId then
+                return presence.placeId, presence.gameId
+            end
+        end
+        return nil
+    end
+
+    local userId = getUserId(username)
+    if userId then
+        local placeId, gameInstanceId = getFriendServer(userId)
+        if placeId and gameInstanceId then
+            TeleportService:TeleportToPlaceInstance(placeId, gameInstanceId, LocalPlayer)
+        else
+            warn("Could not find friend's game instance.")
+        end
+    else
+        warn("Invalid username.")
+    end
+end)
